@@ -16,7 +16,7 @@
   audio.cabin = store.get('cabin', true);
   const ctl = new MX.Controller(audio);
   const cluster = new MX.Cluster($('cluster'));
-  let engine = MX.ENGINES.find((e) => e.id === store.get('engine', 'b6')) || MX.ENGINES[0];
+  let engine = MX.ENGINES.find((e) => e.id === store.get('engine', 'b4r')) || MX.ENGINES[0];
   // pierwszy start: ekran dotykowy (auto) → GPS, komputer → symulator
   let mode = store.get('mode', matchMedia('(pointer: coarse)').matches ? 'gps' : 'sim');
   window.__mx = { ctl, audio, get engine() { return engine; } };
@@ -35,11 +35,11 @@
   const fmt = (n) => n.toLocaleString('pl-PL');
   $('cards').innerHTML = MX.ENGINES.map((e) => `
     <button class="card" data-engine="${e.id}">
-      ${e.sound.turbo ? '<span class="badge">TURBO</span>' : ''}<span class="check"></span>
+      <span class="check"></span>
       <b>${e.name}</b>
       <div class="c-tag">${e.tag}</div>
       <p class="c-desc">${e.desc}</p>
-      <div class="c-meta"><span>${e.cylinders} cyl.</span><span>${fmt(e.drive.limiter)} obr/min</span><span>${e.drive.ratios.length} biegów · ${BOX[e.drive.type]}</span></div>
+      <div class="c-meta">${e.recorded ? '<span class="badge rec">NAGRANIE</span>' : e.sound.turbo ? '<span class="badge">TURBO</span>' : ''}<span>${e.cylinders} cyl.</span><span>${fmt(e.drive.limiter)} obr/min</span><span>${e.drive.ratios.length} biegów · ${BOX[e.drive.type]}</span></div>
     </button>`).join('');
   function markEngine() { document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c.dataset.engine === engine.id)); }
   markEngine();

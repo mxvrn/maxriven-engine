@@ -19,6 +19,30 @@
 
   MX.ENGINES = [
     {
+      // Prawdziwe nagranie (js/samples.js), odtwarzane granularnie według obrotów — patrz worklet: renderSample.
+      id: 'b4r',
+      name: 'Bokser REAL',
+      tag: 'Hamownia · płaska czwórka 2.0 NA',
+      desc: 'Prawdziwy bokser z hamowni, nie syntezator. Słychać oryginalny silnik od 1800 do 7500 obr.',
+      cylinders: 4,
+      recorded: true,
+      sound: {
+        type: 'sample',
+        sample: 'frs',
+        idleLoad: 0.3,
+        darkHz: 1400, brightHz: 7000, offLvl: 0.4,
+        gain: 0.63,
+      },
+      drive: {
+        idle: 900, redline: 7400, limiter: 7550,
+        ratios: [3.63, 2.19, 1.54, 1.21, 1.0, 0.77], final: 4.1, tire: 0.33,
+        type: 'manual', shiftCut: 0.16, shiftTime: 0.3, blipTime: 0.2,
+        upLo: 0.3, downLo: 0.18, downHi: 0.52, brakeDown: 0.36,
+        inertia: 0.05, freeUp: 10000, freeDown: 6000, limiterCut: 0.06,
+        power: 110,
+      },
+    },
+    {
       id: 'v12',
       name: 'V12',
       tag: 'Wysokoobrotowy · 6.5 NA',

@@ -3,7 +3,8 @@
 Aplikacja w przeglądarce, która gra realistyczny dźwięk silnika spalinowego sterowany prędkością auta z GPS.
 Zaprojektowana pod ekran Tesli (1920×1200, dotyk), działa też na Macu z wbudowanym symulatorem jazdy.
 
-Stan na 28.10.2026: wersja lokalna, bez publikacji w internecie (hosting to następny etap).
+Stan na 28.10.2026: opublikowana na **https://mxvrn.github.io/maxriven-engine/** (GitHub Pages, repo `mxvrn/maxriven-engine`).
+Każda poprawka = commit + push na `main`; strona odświeża się po ok. minucie.
 
 ---
 
@@ -53,6 +54,7 @@ Sześć dużych kart, zaznaczona ma fioletową obwódkę. Wybór jest zapamięty
 
 | Silnik | Budowa | Czerwone pole | Skrzynia | Brzmienie |
 |---|---|---|---|---|
+| **Bokser REAL** ⭐ | **prawdziwe nagranie**: płaska czwórka 2.0 (Scion FR-S) na hamowni | 7 400 | 6 manualna | Nie syntezator — oryginalny dźwięk silnika od ok. 1 800 do 7 500 obr., odtwarzany według obrotów. |
 | **V12** | 60°, 6.5 l, wolnossący, zapłon co 60° | 8 900 | 7 DCT | Gładki, gęsty, „śpiewający”. Jedwab na dole, wysoki chór na górze. |
 | **V8 Flat-plane** | płaski wał, 4.5 l, zapłon równy na rząd | 9 000 | 7 DCT | Wysoki, metaliczny wrzask, ostry jak brzytwa. |
 | **V8 Muscle** | krzyżowy wał, 6.2 l, kolejność 1-8-7-2-6-5-4-3 | 6 500 | 6 manualna | Niski bulgot („bububu”) z nierównych impulsów na rząd, lopujący jałowy, dłuższe zmiany biegów jak w manualu. |
@@ -87,10 +89,27 @@ redukcja z przegazówką, kickdown przy wciśnięciu gazu.
 
 ---
 
+### Bokser REAL — silnik z prawdziwego nagrania
+
+Pozostałe silniki są w całości syntezowane i dlatego brzmią trochę „elektronicznie”. Bokser REAL gra **prawdziwe nagranie**:
+- Źródło: Freesound #183654 „DynoJet Scion FR-S” (autor dezoris), licencja **CC0** — wolno go używać i publikować.
+  Z nagrania wycięty jest odcinek wkręcania pod pełnym obciążeniem (`js/samples.js`, MP3 osadzone w pliku, ok. 0,5 MB).
+- Obroty w nagraniu zmierzyłem z harmonicznych silnika (co 20 ms; dopasowanie z błędem ok. 30 obr/min).
+- W czasie jazdy co ok. 18 ms startuje krótki (70 ms) „ziarenko” nagrania z miejsca, w którym silnik miał dokładnie takie obroty,
+  jakie ma teraz wirtualny silnik. Ziarenka nakładają się płynnie — to synteza granularna, tak jak w grach wyścigowych.
+- Bez gazu dźwięk ciemnieje i cichnie (hamowanie silnikiem), na jałowym silnik nadal „pali”.
+
+Ograniczenia: poniżej ~1 800 obr. (jałowy) nagranie jest odtwarzane wolniej, więc brzmi niżej i trochę „taśmowo”;
+odpuszczenie gazu to to samo nagranie przyciemnione (brak osobnego nagrania hamowania silnikiem); brak strzałów z wydechu.
+Lepszy efekt da nagranie konkretnego auta (np. Porsche) — wtedy wystarczy podmienić plik i mapę obrotów (`tools/embed-sample.js`).
+
+---
+
 ## 5. Co sprawdziłem
 
 Automatyczny test (`tools/selftest.js`) otwiera `index.html` **z dysku (file://) w prawdziwym Chrome na Macu**
-i klika jak człowiek. Wynik: **38/38 testów OK, 0 błędów w konsoli**. Sprawdza m.in.:
+i klika jak człowiek. Wynik: **43/43 testów OK, 0 błędów w konsoli**. Sprawdza m.in.:
+- że prawdziwe nagranie (Bokser REAL) dekoduje się i gra (poziom na wyjściu ok. −14 dBFS w jeździe),
 - start dźwięku i to, że w syntezie gra **właściwy** silnik po każdej zmianie,
 - przegazówkę na postoju dla każdego silnika, 0–100 dla każdego silnika (biegi, obroty, prędkość),
 - rozkręcanie turbo w R6, poziom sygnału na wyjściu (jałowy ok. −47 dBFS, jazda ok. −15 dBFS),
@@ -110,7 +129,7 @@ Błędy znalezione i naprawione w trakcie:
 ## 6. Znane ograniczenia
 
 - **Brzmienia nie ocenia test** — mierzy poziomy i poprawność, ale „czy brzmi jak prawdziwy V12” ocenia tylko ucho. Czekam na uwagi.
-- **Tesla nieprzetestowana** — potrzebny hosting https. Do sprawdzenia na miejscu: czy przeglądarka Tesli gra dźwięk strony
+- **Tesla nieprzetestowana** — strona jest już na https. Do sprawdzenia na miejscu: czy przeglądarka Tesli gra dźwięk strony
   w czasie jazdy, czy pozwala na GPS i Wake Lock, i jak głośno wychodzi z głośników kabiny.
 - **Safari nieprzetestowane** automatycznie (test działa w Chrome). Powinno działać, ale pewne jest tylko w Chrome.
 - **GPS z pliku na Macu** — Chrome może pytać o zgodę na lokalizację lub jej odmówić dla plików z dysku; w aucie i tak będzie https.
@@ -123,7 +142,7 @@ Błędy znalezione i naprawione w trakcie:
 
 ## 7. Propozycje ulepszeń
 
-1. **Hosting https + tryb aplikacji (PWA)**: pełny ekran w Tesli, działanie offline, ikonka na ekranie.
+1. **Tryb aplikacji (PWA)**: pełny ekran w Tesli, działanie offline, ikonka na ekranie.
 2. **Strojenie brzmienia** według Twoich uwag (osobne pokrętła: strzały, dolot, turbo, „lope” jałowego).
 3. **Wbudowany font geometryczny** (licencja OFL, np. Jost), żeby Tesla wyglądała identycznie jak Mac.
 4. **Więcej silników**: rotary (Wankel), V6 biturbo, R5 turbo, boxer 4 turbo z „bulgotem”.
@@ -138,9 +157,10 @@ Błędy znalezione i naprawione w trakcie:
 | Plik | Co robi |
 |---|---|
 | `index.html`, `css/app.css`, `js/app.js` | aplikacja: wybór silnika, ekran jazdy, panel dźwięku |
-| `js/worklet.js` | synteza silnika (AudioWorklet, jedna funkcja ładowana jako moduł z `data:`/Blob URL) |
+| `js/worklet.js` | synteza silnika (AudioWorklet, jedna funkcja ładowana jako moduł z `data:`/Blob URL) + odtwarzanie granularne nagrań |
 | `js/audio.js` | kontekst audio, tor wyjściowy (HP, EQ, limiter), wznawianie, Wake Lock |
-| `js/presets.js` | 6 silników: kolejność zapłonu, rezonanse, skrzynia |
+| `js/presets.js` | 7 silników: kolejność zapłonu, rezonanse, skrzynia (Bokser REAL: nagranie + skrzynia) |
+| `js/samples.js`, `tools/embed-sample.js` | prawdziwe nagranie (MP3 w base64) z mapą obrotów; generator wycinka z nagrania źródłowego |
 | `js/drive.js` | skrzynia biegów, obroty, odcięcie, szacowanie gazu |
 | `js/gps.js` | GPS + filtr Kalmana z wygładzonym wyjściem |
 | `js/sim.js` | symulator auta i scenariusze |

@@ -25,15 +25,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .p-logo { font-family: var(--logo); font-size: 64px; letter-spacing: 0.1em; }
 .p-logo span { color: var(--violet); }
 .p-sub { font-size: 30px; color: var(--mute); letter-spacing: 0.12em; text-transform: uppercase; }
-.p-cards { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 28px; min-height: 0; }
-.card { position: relative; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 10px; padding: 30px 36px; overflow: hidden; border: 2px solid var(--line); border-radius: 30px; background: linear-gradient(180deg, #0d0d10, #08080a); transition: border-color 120ms, background 120ms; }
+.p-cards { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 28px; min-height: 0; }
+.card { position: relative; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 10px; padding: 28px 30px; overflow: hidden; border: 2px solid var(--line); border-radius: 30px; background: linear-gradient(180deg, #0d0d10, #08080a); transition: border-color 120ms, background 120ms; }
 .card.on { border-color: var(--violet); background: linear-gradient(180deg, #151026, #0a0812); }
-.card b { font-size: 54px; font-weight: 700; letter-spacing: 0.01em; line-height: 1; }
-.card .c-tag { font-size: 24px; color: var(--mute); }
-.card .c-desc { font-size: 22px; line-height: 1.35; color: #c9c7c2; }
-.card .c-meta { margin-top: auto; display: flex; flex-wrap: nowrap; gap: 8px; }
-.card .c-meta span { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; font-size: 19px; white-space: nowrap; color: #b9b7b2; }
-.card .badge { position: absolute; top: 30px; right: 96px; padding: 6px 14px; border-radius: 999px; background: rgba(138, 92, 255, 0.16); color: #b9a2ff; font-size: 19px; font-weight: 600; letter-spacing: 0.12em; }
+.card b { padding-right: 52px; font-size: 44px; font-weight: 700; letter-spacing: 0.01em; line-height: 1; }
+.card .c-tag { font-size: 22px; color: var(--mute); }
+.card .c-desc { font-size: 20px; line-height: 1.35; color: #c9c7c2; }
+.card .c-meta { margin-top: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.card .c-meta span { padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 18px; white-space: nowrap; color: #b9b7b2; }
+.card .c-meta .badge { border-color: transparent; background: rgba(138, 92, 255, 0.16); color: #b9a2ff; font-weight: 600; letter-spacing: 0.1em; }
+.card .c-meta .badge.rec { background: rgba(255, 196, 0, 0.16); color: #ffc93c; }
 .card .check { position: absolute; top: 28px; right: 32px; width: 46px; height: 46px; border-radius: 50%; border: 2px solid var(--line); }
 .card.on .check { border-color: var(--violet); background: var(--violet) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 30px no-repeat; }
 .p-start { height: 150px; border-radius: 34px; background: var(--violet); color: #fff; font-size: 60px; font-weight: 700; letter-spacing: 0.3em; }

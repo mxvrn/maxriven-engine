@@ -1,5 +1,5 @@
 /* MAXRIVEN ENGINE — kontekst audio i tor wyjściowy.
-   Worklet ładowany przez Blob URL (działa z file://). Tor: HP 28 Hz → bas → EQ kabiny → głośność
+   Worklet ładowany z data: URL (działa z file://), prawdziwe nagrania dekodowane z js/samples.js. Tor: HP 28 Hz → bas → EQ kabiny → głośność
    → limiter → miękkie ograniczenie szczytów. Wznawianie po uśpieniu karty, Wake Lock ekranu. */
 (function (g) {
   'use strict';
@@ -17,6 +17,7 @@
       this.bassDb = 2;
       this.cabin = true;
       this._resumeOnTouch = () => this.resume();
+      this._samples = {}; // id nagrania -> Promise dekodowania (raz na sesję)
     }
 
     async init() {
@@ -62,6 +63,7 @@
       if (!this.ctx) await this.init();
       await this.ctx.resume();
       this.setEngine(engine);
+      if (engine.sound.type === 'sample') await this.loadSample(engine.sound.sample);
       this.node.port.postMessage({ type: 'run', on: true });
       this.running = true;
     }
@@ -84,7 +86,26 @@
     }
 
     setEngine(engine) {
-      if (this.node) this.node.port.postMessage({ type: 'preset', sound: MX.soundFor(engine) });
+      if (!this.node) return;
+      // preset może dojść przed nagraniem — worklet gra ciszę, dopóki nagranie nie przyjdzie
+      this.node.port.postMessage({ type: 'preset', sound: MX.soundFor(engine) });
+      if (engine.sound.type === 'sample') this.loadSample(engine.sound.sample);
+    }
+
+    // Prawdziwe nagranie: MP3 osadzone w js/samples.js -> decodeAudioData -> bufory do workletu.
+    loadSample(id) {
+      if (this._samples[id]) return this._samples[id];
+      const src = MX.SAMPLES && MX.SAMPLES[id];
+      if (!src) return Promise.reject(new Error('Brak nagrania ' + id));
+      const bin = atob(src.mp3), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const p = this.ctx.decodeAudioData(bytes.buffer).then((buf) => {
+        const L = buf.getChannelData(0).slice(), R = (buf.numberOfChannels > 1 ? buf.getChannelData(1) : buf.getChannelData(0)).slice();
+        this.node.port.postMessage({ type: 'sample', id: id, L: L, R: R, rpm: src.rpm }, [L.buffer, R.buffer]);
+      });
+      p.catch((err) => { console.error('Nie udało się zdekodować nagrania', id, err); delete this._samples[id]; });
+      this._samples[id] = p;
+      return p;
     }
 
     set(rpm, throttle, cut) {

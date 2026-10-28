@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const SR = 48000;
@@ -14,7 +15,7 @@ function loadScripts() {
   const ctx = { console, Math, globalThis: null };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  for (const f of ['js/presets.js', 'js/drive.js', 'js/sim.js']) {
+  for (const f of ['js/presets.js', 'js/samples.js', 'js/drive.js', 'js/sim.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   }
   return ctx.MX;
@@ -63,6 +64,15 @@ const SHOW = [
 function render(MX, eng, seconds) {
   const proc = makeProcessor();
   proc.port.onmessage({ data: { type: 'preset', sound: MX.soundFor(eng) } });
+  if (eng.sound.type === 'sample') {
+    // jak decodeAudioData w przeglądarce: MP3 z js/samples.js -> float stereo w częstotliwości kontekstu
+    const src = MX.SAMPLES[eng.sound.sample];
+    const raw = execFileSync('ffmpeg', ['-v', 'error', '-f', 'mp3', '-i', '-', '-ac', '2', '-ar', String(SR), '-f', 'f32le', '-'], { input: Buffer.from(src.mp3, 'base64'), maxBuffer: 1 << 28 });
+    const inter = new Float32Array(raw.buffer, raw.byteOffset, raw.length / 4), n = inter.length / 2;
+    const L = new Float32Array(n), R = new Float32Array(n);
+    for (let i = 0; i < n; i++) { L[i] = inter[2 * i]; R[i] = inter[2 * i + 1]; }
+    proc.port.onmessage({ data: { type: 'sample', id: src.id, L, R, rpm: src.rpm } });
+  }
   proc.port.onmessage({ data: { type: 'run', on: true } });
   const car = new MX.SimCar();
   const dt = new MX.Drivetrain(eng);

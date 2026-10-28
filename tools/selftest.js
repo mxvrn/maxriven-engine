@@ -93,7 +93,7 @@ async function main() {
   await sleep(1200);
   const proto = await evaluate('location.protocol');
   check('Strona otwarta przez file://', proto === 'file:', url);
-  check('Ekran wyboru: 6 kart silników', (await evaluate('document.querySelectorAll(".card").length')) === 6);
+  check('Ekran wyboru: 7 kart silników', (await evaluate('document.querySelectorAll(".card").length')) === 7);
   check('Font logo osadzony', await evaluate('document.fonts.check("40px \\"MX Logo\\"")'));
   await shot('app-wybor.png');
   await evaluate("localStorage.setItem('mxe.mode', JSON.stringify('sim')); true");
@@ -134,6 +134,7 @@ async function main() {
     check(`${e.name}: scenariusz 0–100`, !nan && maxKmh > 95 && maxGear >= 2 && maxRpm > e.red * 0.85, `${Math.round(maxKmh)} km/h, bieg ${maxGear}, max ${Math.round(maxRpm)} obr/min`);
     if (e.turbo) check(`${e.name}: turbo się rozkręca`, maxBoost > 0.5, `doładowanie ${maxBoost.toFixed(2)}`);
     if (e === engines[0]) check('Sygnał na wyjściu audio', maxLvl > -40 && maxLvl < 0, `jałowy ${idleLvl} dBFS, jazda do ${maxLvl} dBFS`);
+    if (e.id === 'b4r') check('Prawdziwe nagranie zdekodowane i gra', (await evaluate('!!__mx.audio._samples.frs')) && maxLvl > -40, `nagranie frs, jazda do ${maxLvl} dBFS`);
     await click('#stop');
     await sleep(400);
     s = await state();

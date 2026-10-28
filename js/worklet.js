@@ -72,6 +72,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
       this.wantRun = false;
       this.meterEvery = Math.round(SR / 30);
       this.meterCount = 0;
+      this.samples = {}; // prawdziwe nagrania: id -> przygotowane bufory i mapa obrotów
       this.port.onmessage = (e) => this.onMessage(e.data);
     }
 
@@ -83,12 +84,16 @@ function MAXRIVEN_ENGINE_WORKLET() {
         else if (this.pending || this.p.s.id !== m.sound.id) this.pending = m.sound;
       } else if (m.type === 'run') {
         this.wantRun = !!m.on;
+      } else if (m.type === 'sample') {
+        this.samples[m.id] = prepareSample(m);
+        if (this.p && this.p.s.sample === m.id) this.p.sm = this.samples[m.id];
       }
     }
 
     // Kompiluje preset do struktur DSP i zeruje stan.
     load(s) {
       this.raw = s;
+      if (s.type === 'sample') { this.loadSample(s); return; }
       const seedRng = new Rng(hash(s.id || 'x'));
       const p = { s: s };
       p.banks = s.banks;
@@ -304,6 +309,8 @@ function MAXRIVEN_ENGINE_WORKLET() {
       const p = this.p;
       if (!p) { L.fill(0); if (R !== L) R.fill(0); return true; }
 
+      if (p.s.type === 'sample') { this.renderSample(L, R, n, params); this.meter(n); return true; }
+
       const s = p.s, r = this.rng;
       const rpmT = params.rpm[0], thrT = params.throttle[0], cutT = params.cut[0];
       this.block(n, rpmT, thrT);
@@ -465,13 +472,112 @@ function MAXRIVEN_ENGINE_WORKLET() {
         if (R !== L) R.fill(0);
       }
 
+      this.meter(n);
+      return true;
+    }
+
+    meter(n) {
+      const p = this.p;
       this.meterCount += n;
       if (this.meterCount >= this.meterEvery) {
         this.meterCount = 0;
-        this.port.postMessage({ type: 'meter', id: p.s.id, boost: p.boost, crackle: p.crackE });
+        this.port.postMessage({ type: 'meter', id: p.s.id, boost: p.boost || 0, crackle: p.crackE || 0 });
       }
-      return true;
     }
+
+    // ---------- silnik z prawdziwego nagrania (synteza granularna) ----------
+    // Nagranie wkręcania pod pełnym obciążeniem + mapa obrotów. Co 1/4 długości ziarna startuje nowe ziarno
+    // (70 ms, okno Hanna) czytane z miejsca, gdzie nagranie miało docelowe obroty; drobna różnica i zakres
+    // poza nagraniem — zmianą prędkości odczytu. Losowe drgnięcie pozycji usuwa efekt grzebienia.
+    loadSample(s) {
+      const p = { s: s, sm: this.samples[s.sample] || null };
+      p.rpm = s.idleRpm; p.thr = 0; p.cut = 0; p.off = 1;
+      p.aRpm = poleSec(0.02); p.aThr = poleSec(0.03); p.aCut = poleSec(0.004); p.aOff = poleSec(0.012);
+      p.grainLen = Math.round(0.07 * SR);
+      p.hop = Math.round(p.grainLen / 4);
+      p.hopCnt = 0;
+      p.win = new Float32Array(p.grainLen);
+      for (let i = 0; i < p.grainLen; i++) { const x = Math.sin((Math.PI * i) / (p.grainLen - 1)); p.win[i] = x * x; }
+      p.grains = [];
+      for (let j = 0; j < 8; j++) p.grains.push({ on: false, pos: 0, rate: 1, n: 0, g: 1 });
+      p.lp = [0, 0];
+      this.p = p;
+    }
+
+    renderSample(L, R, n, params) {
+      const p = this.p, s = p.s, sm = p.sm, r = this.rng;
+      const rpmT = params.rpm[0], thrT = params.throttle[0], cutT = params.cut[0];
+      const fadeA = poleSec(this.fadeTarget > this.fade ? 0.06 : 0.025);
+      const norm = s.gain / Math.sqrt(4 * 0.375); // 4 nakładające się okna o losowej fazie
+      for (let i = 0; i < n; i++) {
+        p.rpm += p.aRpm * (rpmT - p.rpm);
+        p.thr += p.aThr * (thrT - p.thr);
+        p.cut += p.aCut * (cutT - p.cut);
+        this.fade += fadeA * (this.fadeTarget - this.fade);
+        if (!sm) { L[i] = 0; R[i] = 0; continue; }
+        const rpm = p.rpm < 200 ? 200 : p.rpm;
+
+        if (--p.hopCnt <= 0) {
+          p.hopCnt = p.hop;
+          const rr = clamp(rpm, sm.lo, sm.hi);
+          const at = clamp(rr + (r.next() - 0.5) * 50, sm.lo, sm.hi);
+          const c = sm.posFor(at), rate = rpm / rr;
+          for (let j = 0; j < p.grains.length; j++) {
+            const q = p.grains[j];
+            if (q.on) continue;
+            q.on = true; q.n = 0; q.rate = rate; q.pos = c - (p.grainLen * rate) / 2; q.g = sm.comp(c);
+            break;
+          }
+        }
+        let l = 0, rt = 0;
+        for (let j = 0; j < p.grains.length; j++) {
+          const q = p.grains[j];
+          if (!q.on) continue;
+          const w = p.win[q.n] * q.g, k = q.pos | 0, f = q.pos - k;
+          if (k >= 0 && k + 1 < sm.n) {
+            l += (sm.L[k] + (sm.L[k + 1] - sm.L[k]) * f) * w;
+            rt += (sm.R[k] + (sm.R[k + 1] - sm.R[k]) * f) * w;
+          }
+          q.pos += q.rate;
+          if (++q.n >= p.grainLen) q.on = false;
+        }
+
+        // obciążenie: na jałowym silnik też spala, częściowy gaz brzmi pełniej niż sam ułamek pedału;
+        // bez gazu (hamowanie silnikiem) — ciemniej i ciszej
+        const idleL = s.idleLoad * smooth(s.idleRpm * 2.1, s.idleRpm * 1.05, rpm);
+        const eff = Math.max(Math.sqrt(p.thr), idleL) * (1 - 0.8 * p.cut);
+        p.off += p.aOff * (1 - eff - p.off);
+        const lpA = poleHz(s.darkHz + s.brightHz * (1 - p.off));
+        p.lp[0] += lpA * (l - p.lp[0]);
+        p.lp[1] += lpA * (rt - p.lp[1]);
+        const g = norm * (s.offLvl + (1 - s.offLvl) * (1 - p.off)) * (1 - 0.6 * p.cut) * this.fade;
+        L[i] = p.lp[0] * g;
+        R[i] = p.lp[1] * g;
+      }
+    }
+  }
+
+  // Przygotowanie nagrania: mapa obrotów -> pozycja (tablica odwrotna) i wyrównanie głośności w funkcji obrotów.
+  function prepareSample(m) {
+    const L = m.L, R = m.R || m.L, n = L.length, map = m.rpm;
+    const rpmAt = (idx) => { const t = idx / SR + map.offset; return map.c[0] + map.c[1] * t + map.c[2] * t * t; };
+    const i0 = map.from * SR, i1 = Math.min(n - 1, map.to * SR);
+    const lo = rpmAt(i0), hi = rpmAt(i1), TAB = 2048;
+    const tab = new Float32Array(TAB + 1);
+    for (let k = 0; k <= TAB; k++) {
+      const target = lo + ((hi - lo) * k) / TAB;
+      let a = i0, b = i1;
+      for (let it = 0; it < 40; it++) { const c = (a + b) / 2; if (rpmAt(c) < target) a = c; else b = c; }
+      tab[k] = (a + b) / 2;
+    }
+    const posFor = (rpm) => { const x = ((rpm - lo) / (hi - lo)) * TAB, k = clamp(x | 0, 0, TAB - 1), f = clamp(x - k, 0, 1); return tab[k] + (tab[k + 1] - tab[k]) * f; };
+    // głośność co 0,25 s; połowiczna kompensacja w dB, żeby niskie obroty nie ginęły
+    const seg = Math.round(SR / 4), lev = [];
+    for (let a = 0; a + seg <= n; a += seg) { let e = 0; for (let i = a; i < a + seg; i++) e += L[i] * L[i] + R[i] * R[i]; lev.push(Math.sqrt(e / (2 * seg)) + 1e-9); }
+    const top = Math.max.apply(null, lev);
+    const compTab = lev.map((v) => Math.pow(top / v, 0.55));
+    const comp = (pos) => compTab[clamp(Math.floor(pos / seg), 0, compTab.length - 1)];
+    return { L: L, R: R, n: n, lo: lo, hi: hi, posFor: posFor, comp: comp };
   }
 
   function hash(str) {
