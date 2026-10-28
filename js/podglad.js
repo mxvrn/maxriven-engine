@@ -4,7 +4,8 @@
   const MX = window.MX;
   const audio = new MX.AudioEngine();
   const ctl = new MX.Controller(audio);
-  let engine = MX.ENGINES[0];
+  const qs = new URLSearchParams(location.search);
+  let engine = MX.ENGINES.find((x) => x.id === qs.get('engine')) || MX.ENGINES[0];
   ctl.setEngine(engine);
   window.__mx = { ctl, audio };
 
@@ -59,6 +60,35 @@
         <div class="c-rpm"><span class="num" data-f="rpm">0</span><small>OBR/MIN</small></div>
         <div class="meter"><label>GAZ</label><div class="bar"><i data-f="thr"></i></div></div>
         <div class="meter turbo-only"><label>DOŁADOWANIE</label><div class="bar"><i data-f="boost"></i></div></div>
+      </div>`,
+    d: `
+      <div class="d-panel d-left">
+        <div class="d-title">OPONY <span>bar · °C</span></div>
+        <div class="d-car">
+          <div class="d-tyre fl"><b data-f="tFL">2.3</b><span data-f="tTFL">32°</span></div>
+          <div class="d-tyre fr"><b data-f="tFR">2.3</b><span data-f="tTFR">32°</span></div>
+          <div class="d-body"></div>
+          <div class="d-tyre rl"><b data-f="tRL">2.4</b><span data-f="tTRL">33°</span></div>
+          <div class="d-tyre rr"><b data-f="tRR">2.4</b><span data-f="tTRR">33°</span></div>
+        </div>
+        <div class="d-gauge"><label>TEMP. WODY</label><div class="d-val"><b data-f="water">90</b> °C</div><div class="d-bar"><i data-f="waterBar"></i></div></div>
+      </div>
+      <div class="d-centre">
+        <div class="d-strip" data-f="stripL"></div>
+        <div class="d-tach" data-f="tach">
+          <svg viewBox="0 0 1000 1000" data-f="svg"></svg>
+          <div class="d-gear" data-f="gear">N</div>
+          <div class="d-unit">×1000 /min</div>
+          <div class="d-speed"><b class="num" data-f="kmh">0</b> km/h</div>
+          <div class="d-boost turbo-only"><span>DOŁADOWANIE</span><div class="d-bar"><i data-f="boost"></i></div></div>
+        </div>
+        <div class="d-strip" data-f="stripR"></div>
+      </div>
+      <div class="d-panel d-right">
+        <div class="d-gauge"><label>PALIWO</label><div class="d-val"><b data-f="fuel">78</b> %</div><div class="d-bar"><i data-f="fuelBar"></i></div></div>
+        <div class="d-gauge"><label>TEMP. OLEJU</label><div class="d-val"><b data-f="oilT">96</b> °C</div><div class="d-bar"><i data-f="oilTBar"></i></div></div>
+        <div class="d-gauge"><label>CIŚN. OLEJU</label><div class="d-val"><b data-f="oilP">1.8</b> bar</div><div class="d-bar"><i data-f="oilPBar"></i></div></div>
+        <div class="d-gauge"><label>GAZ</label><div class="d-val"><b data-f="thrTxt">0</b> %</div><div class="d-bar"><i data-f="thr"></i></div></div>
       </div>`,
   };
 
@@ -122,6 +152,34 @@
       }
       v.needle = el('line', { class: 'needle', x1: 395, y1: 0, x2: 505, y2: 0 }, svg);
     },
+    // D: zegar w duchu „Track Screen” 911 GT3 — czerwone pole na godzinie 12, paski shift-light po bokach
+    d(v, e) {
+      const svg = v.f.svg, max = tachMax(e), red = e.drive.redline;
+      const theta = (rpm) => ((-150 + (150 * rpm) / red) * Math.PI) / 180; // od godziny 12, zgodnie z zegarem
+      const pt = (rpm, r) => { const t = theta(rpm); return [500 + r * Math.sin(t), 500 - r * Math.cos(t)]; };
+      const arc = (r0, r1, r) => { const a = pt(r0, r), b = pt(r1, r); return `M${a[0]} ${a[1]} A${r} ${r} 0 ${theta(r1) - theta(r0) > Math.PI ? 1 : 0} 1 ${b[0]} ${b[1]}`; };
+      svg.innerHTML = '';
+      el('circle', { class: 'face', cx: 500, cy: 500, r: 492 }, svg);
+      el('path', { class: 'red', d: arc(red, max, 462) }, svg);
+      for (let r = 0; r <= max; r += 250) {
+        const major = r % 1000 === 0, half = r % 500 === 0;
+        const [x1, y1] = pt(r, major ? 418 : half ? 440 : 452), [x2, y2] = pt(r, 470);
+        el('line', { class: 'tick' + (major ? '' : half ? ' half' : ' minor') + (r >= red ? ' hot' : ''), x1, y1, x2, y2 }, svg);
+        if (major && r <= red + 1) { const [x, y] = pt(r, 350); el('text', { x, y, class: r >= red - 1 ? 'hot' : '' }, svg).textContent = r / 1000; }
+      }
+      v.needle = el('g', {}, svg);
+      el('line', { class: 'needle', x1: 500, y1: 560, x2: 500, y2: 70 }, v.needle);
+      el('circle', { class: 'cap', cx: 500, cy: 500, r: 40 }, svg);
+      v.theta = theta;
+      // paski shift-light: zielone, żółte, czerwone — od dołu do góry
+      const colors = ['g', 'g', 'g', 'y', 'y', 'r', 'r', 'r'];
+      v.lights = [];
+      for (const s of [v.f.stripL, v.f.stripR]) {
+        s.innerHTML = '';
+        colors.forEach((c) => { const i = document.createElement('i'); i.className = c; s.prepend(i); v.lights.push(i); });
+      }
+      v.sim = { oilT: 92, water: 86, tyre: 30, fuel: 78 };
+    },
   };
 
   // ---------- widoki ----------
@@ -146,7 +204,28 @@
   const set = (v, key, val, fn) => { if (v.last[key] !== val) { v.last[key] = val; fn(val); } };
   const STATUS = { waiting: 'CZEKAM NA GPS', denied: 'BRAK ZGODY NA GPS', nosignal: 'BRAK SYGNAŁU GPS', unsupported: 'BRAK GPS', off: 'GPS WYŁĄCZONY' };
 
-  function render(s) {
+  // Boczne ekrany wariantu D: wartości wyliczane z symulacji silnika (to atrapy, auto ich nie podaje).
+  function panelD(v, s, dt) {
+    const m = v.sim, rn = s.rpm / s.redline, k = (tau) => 1 - Math.exp(-dt / tau);
+    m.oilT += (92 + 24 * s.throttle * rn - m.oilT) * k(25);
+    m.water += (87 + 7 * rn - m.water) * k(30);
+    m.tyre += (28 + s.kmh * 0.12 + 10 * s.throttle - m.tyre) * k(40);
+    m.fuel = Math.max(5, m.fuel - s.throttle * rn * dt * 0.004);
+    const oilP = 1.4 + 3.6 * Math.min(1, s.rpm / 5500);
+    const pf = (2.25 + (m.tyre - 25) * 0.006).toFixed(1), pr = (2.35 + (m.tyre - 25) * 0.006).toFixed(1);
+    const tf = Math.round(m.tyre) + '°', tr = Math.round(m.tyre + 2) + '°';
+    const vals = {
+      tFL: pf, tFR: pf, tRL: pr, tRR: pr, tTFL: tf, tTFR: tf, tTRL: tr, tTRR: tr,
+      water: String(Math.round(m.water)), oilT: String(Math.round(m.oilT)), oilP: oilP.toFixed(1), fuel: String(Math.round(m.fuel)),
+    };
+    for (const key in vals) set(v, key, vals[key], (x) => (v.f[key].textContent = x));
+    set(v, 'waterBar', Math.round((m.water - 60) / 0.7), (x) => (v.f.waterBar.style.width = x + '%'));
+    set(v, 'oilTBar', Math.round((m.oilT - 60) / 0.9), (x) => (v.f.oilTBar.style.width = x + '%'));
+    set(v, 'oilPBar', Math.round(oilP / 0.06), (x) => (v.f.oilPBar.style.width = x + '%'));
+    set(v, 'fuelBar', Math.round(m.fuel), (x) => (v.f.fuelBar.style.width = x + '%'));
+  }
+
+  function render(s, dt) {
     const max = tachMax(engine);
     const frac = Math.min(1, s.rpm / max);
     const shift = s.rpm > s.redline * 0.95 && Math.floor(performance.now() / 90) % 2 === 0;
@@ -158,7 +237,7 @@
     for (const v of views) {
       set(v, 'kmh', kmh, (x) => (v.f.kmh.textContent = x));
       set(v, 'gear', gear, (x) => (v.f.gear.textContent = x));
-      set(v, 'rpm', rpm, (x) => (v.f.rpm.textContent = x));
+      if (v.f.rpm) set(v, 'rpm', rpm, (x) => (v.f.rpm.textContent = x));
       set(v, 'status', status, (x) => { v.f.status.textContent = x; v.f.status.classList.toggle('ok', s.mode === 'gps' && s.gpsStatus === 'ok'); });
       set(v, 'mode', s.mode, (x) => {
         v.root.classList.toggle('sim', x === 'sim');
@@ -167,7 +246,21 @@
       set(v, 'scn', s.scenario, (x) => v.root.querySelectorAll('[data-act=scn]').forEach((b) => b.classList.toggle('on', b.dataset.id === x)));
       set(v, 'revOk', s.stopped, (x) => v.root.querySelector('.btn-rev').classList.toggle('off', !x));
       const thr = Math.round(s.throttle * 100) + '%', boost = Math.round(s.boost * 100) + '%';
-      if (v.kind === 'b') {
+      if (v.kind === 'd') {
+        set(v, 'thr', thr, (x) => { v.f.thr.style.width = x; v.f.thrTxt.textContent = parseInt(x, 10); });
+        set(v, 'boost', boost, (x) => (v.f.boost.style.width = x));
+        const deg = (v.theta(Math.min(s.rpm, max)) * 180) / Math.PI;
+        v.needle.setAttribute('transform', `rotate(${deg.toFixed(2)} 500 500)`);
+        // shift-light: zapalają się od 72% do 97% czerwonego pola, potem wszystkie migają
+        const lit = Math.max(0, Math.min(8, Math.ceil(((s.rpm - s.redline * 0.72) / (s.redline * 0.25)) * 8)));
+        const flash = s.rpm >= s.redline * 0.97 && !s.cut ? (Math.floor(performance.now() / 70) % 2 ? 'F' : 'f') : '';
+        set(v, 'lights', lit + flash, () => v.lights.forEach((l, i) => {
+          l.classList.toggle('on', i % 8 < lit);
+          l.classList.toggle('flash', flash === 'F');
+        }));
+        set(v, 'shift', !!flash, (x) => v.f.tach.classList.toggle('shift', x));
+        panelD(v, s, dt);
+      } else if (v.kind === 'b') {
         set(v, 'thr', thr, (x) => (v.f.thr.style.height = x));
         set(v, 'boost', boost, (x) => (v.f.boost.style.height = x));
         const lit = Math.round(frac * v.segs.length);
@@ -275,7 +368,7 @@
       demoWait += dt;
       if (demoWait > 1.5) { demoWait = 0; ctl.runner.start(MX.SCENARIOS[demoIdx++ % MX.SCENARIOS.length]); }
     }
-    render(s);
+    render(s, dt);
   };
   // ?shot=5 — przewiń symulację 0–100 o tyle sekund i zatrzymaj obraz (do zrzutów)
   const shot = parseFloat(new URLSearchParams(location.search).get('shot'));
@@ -285,6 +378,8 @@
     let t = performance.now();
     ctl.lastT = t;
     for (let i = 0; i < shot * 60; i++) ctl.tick((t += 1000 / 60));
+    // ?clean=1 — bez panelu symulatora, tak jak w aucie podczas jazdy na GPS
+    if (qs.get('clean')) views.forEach((v) => v.root.classList.remove('sim'));
   } else {
     ctl.start();
   }
