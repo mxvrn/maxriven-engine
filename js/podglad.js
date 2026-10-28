@@ -261,6 +261,13 @@
   });
   document.querySelectorAll('.pv-scale').forEach((n) => ro.observe(n));
 
+  // ?only=a — sam jeden wariant na cały ekran (do zrzutów)
+  const only = new URLSearchParams(location.search).get('only');
+  if (only) {
+    document.body.classList.add('only');
+    document.querySelectorAll('.pv-item').forEach((n) => { if (n.querySelector('.screen').dataset.variant !== only) n.remove(); });
+  }
+
   // ---------- start: auto-demo scenariuszy, dopóki użytkownik nic nie dotknie ----------
   let demoIdx = 0, demoWait = 0;
   ctl.onFrame = (s, dt) => {
@@ -270,5 +277,15 @@
     }
     render(s);
   };
-  ctl.start();
+  // ?shot=5 — przewiń symulację 0–100 o tyle sekund i zatrzymaj obraz (do zrzutów)
+  const shot = parseFloat(new URLSearchParams(location.search).get('shot'));
+  if (shot > 0) {
+    autoDemo = false;
+    ctl.runner.start(MX.SCENARIOS[0]);
+    let t = performance.now();
+    ctl.lastT = t;
+    for (let i = 0; i < shot * 60; i++) ctl.tick((t += 1000 / 60));
+  } else {
+    ctl.start();
+  }
 })();
