@@ -277,7 +277,8 @@ function MAXRIVEN_ENGINE_WORKLET() {
         const shaftT = 0.08 + 0.92 * p.boost;
         p.shaft += (shaftT - p.shaft) * poleSec(shaftT > p.shaft ? t.lag * 0.8 : 0.9, SR / n);
         if (thrT > 0.4) p.bovArmed = true;
-        if (p.bovArmed && thrT < 0.15 && p.boost > 0.3) {
+        // tylko prawdziwe zdjęcie nogi z gazu (wolna średnia), nie krótkie odcięcie przy zmianie biegu
+        if (p.bovArmed && thrT < 0.15 && p.thrSlow < 0.35 && p.boost > 0.3) {
           p.bovArmed = false;
           p.bovAge = 0;
           p.bovAmp = t.bov * Math.min(1, p.boost * 1.3);

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAXRIVEN Engine — podgląd</title>
+  <link rel="stylesheet" href="css/font.css">
+  <link rel="stylesheet" href="css/podglad.css">
+</head>
+<body>
+  <header class="pv-bar">
+    <div class="pv-logo">MAXRIVEN <span>ENGINE</span></div>
+    <div class="pv-title">Podgląd ekranu jazdy · 3 warianty · wszystko działa na żywo</div>
+    <div class="pv-engines" id="pvEngines"></div>
+    <button id="pvSound" class="pv-sound">▶ Włącz dźwięk</button>
+    <div class="pv-view"><button data-view="grid" class="on">Obok siebie</button><button data-view="stack">Duże</button></div>
+  </header>
+
+  <main id="pvFrames" class="pv-frames grid">
+    <section class="pv-item"><h2><b>A</b>Łuk · elektryczny fiolet · czarne tło</h2><div class="pv-scale"><div class="screen" data-variant="a"></div></div></section>
+    <section class="pv-item"><h2><b>B</b>Horyzont · neonowy niebieski · czarne tło</h2><div class="pv-scale"><div class="screen" data-variant="b"></div></div></section>
+    <section class="pv-item"><h2><b>C</b>Półkole · złamana biel · fiolet</h2><div class="pv-scale"><div class="screen" data-variant="c"></div></div></section>
+  </main>
+
+  <script src="js/presets.js"></script>
+  <script src="js/drive.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/gps.js"></script>
+  <script src="js/worklet.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/controller.js"></script>
+  <script src="js/podglad.js"></script>
+</body>
+</html>
