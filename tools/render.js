@@ -63,6 +63,7 @@ const SHOW = [
 function render(MX, eng, seconds) {
   const proc = makeProcessor();
   proc.port.onmessage({ data: { type: 'preset', sound: MX.soundFor(eng) } });
+  proc.port.onmessage({ data: { type: 'run', on: true } });
   const car = new MX.SimCar();
   const dt = new MX.Drivetrain(eng);
   const total = Math.round(seconds * SR);

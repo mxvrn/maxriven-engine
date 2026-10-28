@@ -11,6 +11,7 @@
     constructor() { this.reset(); }
     reset() {
       this.v = 0; this.a = 0;
+      this.out = 0; this.aOut = 0; // wygładzone wyjście: korekty rozłożone w czasie, bez schodków
       this.P = [4, 0, 0, 4];
       this.q = 3.0; // gęstość widmowa szarpnięcia [m²/s⁵] — ile „wolno” zmieniać przyspieszenie
     }
@@ -25,7 +26,10 @@
         p11 + q * dt,
       ];
       if (this.v < 0) { this.v = 0; if (this.a < 0) this.a = 0; }
+      this.out = Math.max(0, this.out + this.a * dt + (this.v - this.out) * (1 - Math.exp(-dt / 0.35)));
+      this.aOut += (this.a - this.aOut) * (1 - Math.exp(-dt / 0.3));
     }
+    set(v) { this.v = this.out = v; this.a = this.aOut = 0; }
     update(z, sigma) {
       const [p00, p01, p10, p11] = this.P;
       const s = p00 + sigma * sigma;
@@ -56,10 +60,11 @@
       this.onStatus = null;
     }
 
-    get v() { return this.kf.v < 0.35 ? 0 : this.kf.v; }
-    get a() { return this.kf.v < 0.35 ? 0 : this.kf.a; }
+    get v() { return this.kf.out < 0.35 ? 0 : this.kf.out; }
+    get a() { return this.kf.out < 0.35 ? 0 : this.kf.aOut; }
 
     start() {
+      if (this.watchId != null) return;
       if (!('geolocation' in navigator)) { this.setStatus('unsupported'); return; }
       this.setStatus('waiting');
       this.watchId = navigator.geolocation.watchPosition(
@@ -97,7 +102,7 @@
       this.last = { coords: { latitude: c.latitude, longitude: c.longitude, accuracy: c.accuracy }, timestamp: pos.timestamp };
       if (z != null) {
         // pierwsza próbka po dłuższej przerwie: ustaw bez „dojeżdżania”
-        if (now - this.lastFixAt > 6000) { this.kf.v = z; this.kf.a = 0; }
+        if (now - this.lastFixAt > 6000) this.kf.set(z);
         this.kf.update(z, sigma);
       }
       this.lastFixAt = now;

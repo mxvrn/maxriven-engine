@@ -38,6 +38,7 @@
     }
 
     start() {
+      this.stop();
       if (this.mode === 'gps') this.gps.start();
       this.lastT = performance.now();
       const loop = (t) => { this.raf = requestAnimationFrame(loop); this.tick(t); };
@@ -49,6 +50,8 @@
     stop() {
       cancelAnimationFrame(this.raf);
       clearInterval(this.bg);
+      this.raf = 0;
+      this.bg = 0;
       this.gps.stop();
       this.runner.stop();
     }
@@ -67,8 +70,8 @@
           this.testTimer += dt;
           this.testKf.predict(dt);
           if (this.testTimer >= 1) { this.testTimer -= 1; this.testKf.update(Math.max(0, this.car.v + 0.35 * gauss()), 0.5); }
-          v = this.testKf.v < 0.35 ? 0 : this.testKf.v;
-          a = v ? this.testKf.a : 0;
+          v = this.testKf.out < 0.35 ? 0 : this.testKf.out;
+          a = v ? this.testKf.aOut : 0;
           thr = this.estimator.update(dt, v, a, eng.drive.power);
         } else {
           v = this.car.v; a = this.car.a; thr = this.car.thr;

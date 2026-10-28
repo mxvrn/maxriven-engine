@@ -22,9 +22,7 @@
     async init() {
       const Ctx = g.AudioContext || g.webkitAudioContext;
       const ctx = (this.ctx = new Ctx({ latencyHint: 'interactive' }));
-      const src = '(' + g.MAXRIVEN_ENGINE_WORKLET.toString() + ')();';
-      const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
-      try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      await loadWorklet(ctx);
 
       this.node = new AudioWorkletNode(ctx, 'maxriven-engine', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
       this.node.port.onmessage = (e) => { if (e.data.type === 'meter') this.meter = e.data; };
@@ -116,6 +114,22 @@
       this.presence.gain.setTargetAtTime(on ? 1.5 : 0, t, 0.05);
       this.air.gain.setTargetAtTime(on ? -2.5 : 0, t, 0.05);
     }
+  }
+
+  // Kod workletu jest w js/worklet.js jako zwykła funkcja — tu zamieniamy go na moduł.
+  // Z file:// Chrome blokuje moduły z Blob URL (origin „null”), ale przyjmuje data: URL;
+  // na http(s) działają oba. Próbujemy po kolei.
+  async function loadWorklet(ctx) {
+    const src = '(' + g.MAXRIVEN_ENGINE_WORKLET.toString() + ')();';
+    const dataUrl = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(src);
+    try {
+      await ctx.audioWorklet.addModule(dataUrl);
+      return;
+    } catch (err) {
+      console.warn('Worklet z data: URL nie wszedł, próbuję Blob URL', err);
+    }
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    try { await ctx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
   }
 
   function chain(...nodes) { for (let i = 0; i < nodes.length - 1; i++) nodes[i].connect(nodes[i + 1]); }

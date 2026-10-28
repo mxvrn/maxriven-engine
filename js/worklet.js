@@ -69,17 +69,20 @@ function MAXRIVEN_ENGINE_WORKLET() {
       this.pending = null;
       this.fade = 0;
       this.fadeTarget = 0;
+      this.wantRun = false;
       this.meterEvery = Math.round(SR / 30);
       this.meterCount = 0;
       this.port.onmessage = (e) => this.onMessage(e.data);
     }
 
+    // Zmiana presetu: jeśli coś gra — najpierw wyciszenie, podmiana w ciszy, potem powrót.
+    // „run” mówi tylko, czy ma grać; nie może przerwać wyciszenia przed podmianą (kolejność komunikatów bywa różna).
     onMessage(m) {
       if (m.type === 'preset') {
-        if (!this.p) { this.load(m.sound); this.fadeTarget = 1; }
-        else { this.pending = m.sound; this.fadeTarget = 0; }
+        if (!this.p || this.fade < 0.002) { this.load(m.sound); this.pending = null; }
+        else if (this.pending || this.p.s.id !== m.sound.id) this.pending = m.sound;
       } else if (m.type === 'run') {
-        this.fadeTarget = m.on ? 1 : 0;
+        this.wantRun = !!m.on;
       }
     }
 
@@ -296,7 +299,8 @@ function MAXRIVEN_ENGINE_WORKLET() {
       const R = out[1] || out[0];
       const n = L.length;
 
-      if (this.pending && this.fade < 0.002) { this.load(this.pending); this.pending = null; this.fadeTarget = 1; }
+      if (this.pending && this.fade < 0.002) { this.load(this.pending); this.pending = null; }
+      this.fadeTarget = this.pending ? 0 : this.wantRun ? 1 : 0;
       const p = this.p;
       if (!p) { L.fill(0); if (R !== L) R.fill(0); return true; }
 
@@ -464,7 +468,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
       this.meterCount += n;
       if (this.meterCount >= this.meterEvery) {
         this.meterCount = 0;
-        this.port.postMessage({ type: 'meter', boost: p.boost, crackle: p.crackE });
+        this.port.postMessage({ type: 'meter', id: p.s.id, boost: p.boost, crackle: p.crackE });
       }
       return true;
     }
