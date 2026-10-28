@@ -61,6 +61,7 @@
         <div class="meter"><label>GAZ</label><div class="bar"><i data-f="thr"></i></div></div>
         <div class="meter turbo-only"><label>DOŁADOWANIE</label><div class="bar"><i data-f="boost"></i></div></div>
       </div>`,
+    e: `<div class="e-wrap"><svg viewBox="0 0 1840 820" preserveAspectRatio="xMidYMid meet" data-f="svg"></svg></div>`,
     d: `
       <div class="d-panel d-left">
         <div class="d-title">OPONY <span>bar · °C</span></div>
@@ -180,6 +181,102 @@
       }
       v.sim = { oilT: 92, water: 86, tyre: 30, fuel: 78 };
     },
+    // E: klasyczne zegary 991 GT3 RS — żółte tarcze, prędkościomierz z lewej, kolorowy ekran z prawej
+    e(v, e) {
+      const svg = v.f.svg, max = tachMax(e), red = e.drive.redline;
+      const P = (cx, cy, r, deg) => { const t = (deg * Math.PI) / 180; return [cx + r * Math.sin(t), cy - r * Math.cos(t)]; };
+      const arcD = (cx, cy, r, d0, d1) => { const a = P(cx, cy, r, d0), b = P(cx, cy, r, d1); return `M${a[0]} ${a[1]} A${r} ${r} 0 ${d1 - d0 > 180 ? 1 : 0} 1 ${b[0]} ${b[1]}`; };
+      const txt = (x, y, str, cls, parent, extra) => { const t = el('text', Object.assign({ x, y, class: cls }, extra || {}), parent || svg); t.textContent = str; return t; };
+      svg.innerHTML = `<defs>
+        <radialGradient id="eFace" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#f8cf62"/><stop offset=".6" stop-color="#e6a83a"/><stop offset="1" stop-color="#9c6512"/></radialGradient>
+        <linearGradient id="eGlass" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <radialGradient id="eTft" cx="45%" cy="35%" r="80%"><stop offset="0" stop-color="#1b2c62"/><stop offset=".7" stop-color="#0a1230"/><stop offset="1" stop-color="#03060f"/></radialGradient>
+        <linearGradient id="eHead" x1="0" x2="1"><stop offset="0" stop-color="#3550b0"/><stop offset=".85" stop-color="#1d2b6e"/><stop offset="1" stop-color="#8fa3ff"/></linearGradient>
+        <clipPath id="eTftClip"><circle cx="1530" cy="450" r="282"/></clipPath>
+        <clipPath id="eTachClip"><circle cx="920" cy="410" r="380"/></clipPath>
+      </defs>`;
+
+      // --- prędkościomierz (lewa) ---
+      const SC = (v.SC = [310, 450]), SR = 290;
+      v.sTheta = (kmh) => -145 + (220 * Math.min(Math.max(kmh, 0), 350)) / 350;
+      el('circle', { cx: SC[0], cy: SC[1], r: SR + 16, class: 'e-bezel' }, svg);
+      el('circle', { cx: SC[0], cy: SC[1], r: SR, fill: 'url(#eFace)' }, svg);
+      for (let k = 0; k <= 350; k += 10) {
+        const major = k % 50 === 0, d = v.sTheta(k), a = P(...SC, SR - 10, d), b = P(...SC, SR - (major ? 44 : 24), d);
+        el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: major ? 'e-tick big' : 'e-tick' }, svg);
+        if (major && k) { const c = P(...SC, SR - 86, d); txt(c[0], c[1], k, 'e-lab s'); }
+      }
+      txt(SC[0] + 10, SC[1] - 120, 'km/h', 'e-small');
+      el('rect', { x: SC[0] - 150, y: SC[1] + 150, width: 300, height: 108, rx: 34, class: 'e-lcd' }, svg);
+      v.tripTxt = txt(SC[0] + 40, SC[1] + 200, '0.0', 'e-lcdtxt', svg, { 'text-anchor': 'end' });
+      txt(SC[0] + 52, SC[1] + 200, 'km', 'e-lcdunit');
+      v.avgTxt = txt(SC[0] + 40, SC[1] + 244, '0', 'e-lcdtxt', svg, { 'text-anchor': 'end' });
+      txt(SC[0] + 52, SC[1] + 244, 'Ø km/h', 'e-lcdunit');
+      v.sNeedle = el('g', {}, svg);
+      el('polygon', { points: `${SC[0] - 8},${SC[1] + 52} ${SC[0] + 8},${SC[1] + 52} ${SC[0] + 3},${SC[1] - SR + 40} ${SC[0] - 3},${SC[1] - SR + 40}`, class: 'e-needle' }, v.sNeedle);
+      el('circle', { cx: SC[0], cy: SC[1], r: 46, class: 'e-hub' }, svg);
+      el('circle', { cx: SC[0], cy: SC[1], r: SR, fill: 'url(#eGlass)' }, svg);
+
+      // --- ekran (prawa) ---
+      const RC = [1530, 450];
+      el('circle', { cx: RC[0], cy: RC[1], r: 298, class: 'e-bezel' }, svg);
+      const tft = el('g', { 'clip-path': 'url(#eTftClip)' }, svg);
+      el('rect', { x: RC[0] - 300, y: RC[1] - 300, width: 600, height: 600, fill: 'url(#eTft)' }, tft);
+      txt(RC[0], RC[1] - 178, e.name, 'e-tft big', tft, { 'text-anchor': 'middle' });
+      el('rect', { x: RC[0] - 215, y: RC[1] - 132, width: 450, height: 62, fill: 'url(#eHead)' }, tft);
+      el('line', { x1: RC[0] - 215, y1: RC[1] - 68, x2: RC[0] + 240, y2: RC[1] - 68, stroke: '#e3261b', 'stroke-width': 3 }, tft);
+      txt(RC[0] - 200, RC[1] - 86, 'Silnik', 'e-tft head', tft);
+      v.rows = ['WODA', 'OLEJ', 'CIŚN.'].map((label, i) => {
+        const y = RC[1] - 6 + i * 78;
+        txt(RC[0] - 190, y, label, 'e-tft lbl', tft);
+        const segs = [];
+        for (let j = 0; j < 8; j++) segs.push(el('rect', { x: RC[0] - 92 + j * 18, y: y - 22, width: 14, height: 22, class: 'e-seg' + (j === 7 ? ' warn' : '') }, tft));
+        el('rect', { x: RC[0] - 92 + 7 * 18, y: y - 30, width: 14, height: 4, fill: '#e3261b' }, tft);
+        return { segs, txt: txt(RC[0] + 228, y, '', 'e-tft val', tft, { 'text-anchor': 'end' }) };
+      });
+      el('line', { x1: RC[0] - 190, y1: RC[1] + 200, x2: RC[0] + 190, y2: RC[1] + 200, stroke: '#3a4a86', 'stroke-width': 2 }, tft);
+      v.clock = txt(RC[0], RC[1] + 250, '', 'e-tft clock', tft, { 'text-anchor': 'middle' });
+
+      // --- obrotomierz (środek, na wierzchu) ---
+      const TC = (v.TC = [920, 410]), TR = 380;
+      v.tTheta = (rpm) => -135 + (270 * Math.max(rpm, 0)) / max;
+      el('circle', { cx: TC[0], cy: TC[1], r: TR + 34, fill: '#000', opacity: 0.7 }, svg);
+      el('circle', { cx: TC[0], cy: TC[1], r: TR + 18, class: 'e-bezel' }, svg);
+      el('circle', { cx: TC[0], cy: TC[1], r: TR, fill: 'url(#eFace)' }, svg);
+      el('path', { d: arcD(...TC, TR - 24, v.tTheta(red), v.tTheta(max)), class: 'e-red' }, svg);
+      for (let r = 0; r <= max; r += 250) {
+        const major = r % 1000 === 0, half = r % 500 === 0, d = v.tTheta(r);
+        const a = P(...TC, TR - 10, d), b = P(...TC, TR - (major ? 52 : half ? 34 : 22), d);
+        el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: 'e-tick' + (major ? ' big' : half ? ' mid' : '') }, svg);
+        if (major) { const c = P(...TC, TR - 108, d); txt(c[0], c[1], r / 1000, 'e-lab'); }
+      }
+      txt(TC[0], TC[1] - 118, 'MAXRIVEN', 'e-script', svg, { transform: `skewX(-14) translate(${Math.tan((14 * Math.PI) / 180) * (TC[1] - 118)} 0)` });
+      v.upLed = el('polygon', { points: `${TC[0] - 22},${TC[1] - 196} ${TC[0] + 22},${TC[1] - 196} ${TC[0]},${TC[1] - 228}`, class: 'e-up' }, svg);
+      // bieg + PDK
+      el('rect', { x: TC[0] - 92, y: TC[1] + 112, width: 82, height: 108, rx: 18, class: 'e-lcd' }, svg);
+      v.f.gear = txt(TC[0] - 51, TC[1] + 192, 'N', 'e-gear', svg, { 'text-anchor': 'middle' });
+      el('line', { x1: TC[0] + 22, y1: TC[1] + 104, x2: TC[0] + 22, y2: TC[1] + 222, class: 'e-pdkline' }, svg);
+      v.prnd = ['P', 'R', 'N', 'D'].map((p, i) => {
+        const y = TC[1] + 120 + i * 32;
+        txt(TC[0] + 48, y + 11, p, 'e-pdk', svg, { 'text-anchor': 'middle' });
+        const d = el('circle', { cx: TC[0] + 82, cy: y, r: 7, class: 'e-dot' }, svg);
+        d.dataset.p = p;
+        return d;
+      });
+      // cyfrowa prędkość w ciemnym pasku u dołu tarczy
+      const band = el('g', { 'clip-path': 'url(#eTachClip)' }, svg);
+      el('rect', { x: TC[0] - 260, y: TC[1] + 262, width: 520, height: 140, rx: 50, class: 'e-lcd' }, band);
+      v.f.kmh = txt(TC[0] + 24, TC[1] + 335, '0', 'e-speed', svg, { 'text-anchor': 'end' });
+      txt(TC[0] + 38, TC[1] + 333, 'km/h', 'e-lcdunit');
+      v.tNeedle = el('g', {}, svg);
+      el('polygon', { points: `${TC[0] - 11},${TC[1] + 78} ${TC[0] + 11},${TC[1] + 78} ${TC[0] + 4},${TC[1] - TR + 46} ${TC[0] - 4},${TC[1] - TR + 46}`, class: 'e-needle' }, v.tNeedle);
+      el('circle', { cx: TC[0], cy: TC[1], r: 66, class: 'e-hub' }, svg);
+      el('circle', { cx: TC[0], cy: TC[1], r: TR, fill: 'url(#eGlass)' }, svg);
+
+      v.sim = { oilT: 84, water: 85, tyre: 30, fuel: 78 };
+      v.trip = 0;
+      v.moving = 0;
+    },
   };
 
   // ---------- widoki ----------
@@ -205,13 +302,18 @@
   const STATUS = { waiting: 'CZEKAM NA GPS', denied: 'BRAK ZGODY NA GPS', nosignal: 'BRAK SYGNAŁU GPS', unsupported: 'BRAK GPS', off: 'GPS WYŁĄCZONY' };
 
   // Boczne ekrany wariantu D: wartości wyliczane z symulacji silnika (to atrapy, auto ich nie podaje).
-  function panelD(v, s, dt) {
-    const m = v.sim, rn = s.rpm / s.redline, k = (tau) => 1 - Math.exp(-dt / tau);
+  function simStep(m, s, dt) {
+    const rn = s.rpm / s.redline, k = (tau) => 1 - Math.exp(-dt / tau);
     m.oilT += (92 + 24 * s.throttle * rn - m.oilT) * k(25);
     m.water += (87 + 7 * rn - m.water) * k(30);
     m.tyre += (28 + s.kmh * 0.12 + 10 * s.throttle - m.tyre) * k(40);
     m.fuel = Math.max(5, m.fuel - s.throttle * rn * dt * 0.004);
-    const oilP = 1.4 + 3.6 * Math.min(1, s.rpm / 5500);
+    return 1.4 + 3.6 * Math.min(1, s.rpm / 5500);
+  }
+
+  function panelD(v, s, dt) {
+    const m = v.sim;
+    const oilP = simStep(m, s, dt);
     const pf = (2.25 + (m.tyre - 25) * 0.006).toFixed(1), pr = (2.35 + (m.tyre - 25) * 0.006).toFixed(1);
     const tf = Math.round(m.tyre) + '°', tr = Math.round(m.tyre + 2) + '°';
     const vals = {
@@ -246,7 +348,25 @@
       set(v, 'scn', s.scenario, (x) => v.root.querySelectorAll('[data-act=scn]').forEach((b) => b.classList.toggle('on', b.dataset.id === x)));
       set(v, 'revOk', s.stopped, (x) => v.root.querySelector('.btn-rev').classList.toggle('off', !x));
       const thr = Math.round(s.throttle * 100) + '%', boost = Math.round(s.boost * 100) + '%';
-      if (v.kind === 'd') {
+      if (v.kind === 'e') {
+        v.tNeedle.setAttribute('transform', `rotate(${v.tTheta(Math.min(s.rpm, max)).toFixed(2)} ${v.TC[0]} ${v.TC[1]})`);
+        v.sNeedle.setAttribute('transform', `rotate(${v.sTheta(s.kmh).toFixed(2)} ${v.SC[0]} ${v.SC[1]})`);
+        set(v, 'up', s.rpm >= s.redline * 0.95 && !s.cut, (x) => v.upLed.classList.toggle('on', x));
+        set(v, 'prnd', s.stopped ? 'N' : 'D', (x) => v.prnd.forEach((d) => d.classList.toggle('on', d.dataset.p === x)));
+        v.trip += (s.kmh * dt) / 3600;
+        if (s.kmh > 1) v.moving += dt;
+        set(v, 'trip', v.trip.toFixed(1), (x) => (v.tripTxt.textContent = x));
+        set(v, 'avg', String(v.moving > 1 ? Math.round(v.trip / (v.moving / 3600)) : 0), (x) => (v.avgTxt.textContent = x));
+        const now = new Date();
+        set(v, 'clock', `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`, (x) => (v.clock.textContent = x));
+        const oilP = simStep(v.sim, s, dt);
+        const rows = [[v.sim.water, 60, 130, Math.round(v.sim.water) + ' °C'], [v.sim.oilT, 60, 150, Math.round(v.sim.oilT) + ' °C'], [oilP, 0, 7, oilP.toFixed(1) + ' bar']];
+        rows.forEach(([val, lo, hi, txt], i) => {
+          const n = Math.max(1, Math.min(8, Math.round(((val - lo) / (hi - lo)) * 8)));
+          set(v, 'row' + i, txt, (x) => (v.rows[i].txt.textContent = x));
+          set(v, 'seg' + i, n, (x) => v.rows[i].segs.forEach((g, j) => g.classList.toggle('on', j < x)));
+        });
+      } else if (v.kind === 'd') {
         set(v, 'thr', thr, (x) => { v.f.thr.style.width = x; v.f.thrTxt.textContent = parseInt(x, 10); });
         set(v, 'boost', boost, (x) => (v.f.boost.style.width = x));
         const deg = (v.theta(Math.min(s.rpm, max)) * 180) / Math.PI;
