@@ -3,9 +3,9 @@
 Aplikacja w przeglądarce, która gra realistyczny dźwięk silnika spalinowego sterowany prędkością auta z GPS.
 Zaprojektowana pod ekran Tesli (1920×1200, dotyk), działa też na Macu z wbudowanym symulatorem jazdy.
 
-Stan na 28.10.2026: kod w repo `mxvrn/maxriven-engine` (gałąź `main`). Strona **https://mxvrn.github.io/maxriven-engine/**
-działała z GitHub Pages, ale od kiedy repo jest **prywatne**, zwraca 404 — darmowe konto GitHub nie publikuje stron z prywatnych repo
-(trzeba repo z powrotem upublicznić, wykupić GitHub Pro albo przenieść hosting). Każda poprawka = commit + push na `main`.
+Stan na 28.10.2026: opublikowana na **https://mxvrn.github.io/maxriven-engine/** (GitHub Pages, repo `mxvrn/maxriven-engine`, publiczne).
+Każda poprawka = commit + push na `main`; strona odświeża się po ok. minucie. Uwaga: przy repo prywatnym strona znika (404) —
+darmowe konto GitHub nie publikuje stron z prywatnych repo.
 
 ---
 
@@ -204,7 +204,7 @@ Błędy znalezione i naprawione w trakcie:
 ## 6. Znane ograniczenia
 
 - **Brzmienia nie ocenia test** — mierzy poziomy i poprawność, ale „czy brzmi jak prawdziwy V12” ocenia tylko ucho. Czekam na uwagi.
-- **Tesla nieprzetestowana** — strona była na https, ale przy prywatnym repo GitHub Pages jej nie serwuje (patrz góra raportu). Do sprawdzenia na miejscu: czy przeglądarka Tesli gra dźwięk strony
+- **Tesla nieprzetestowana** — strona jest na https. Do sprawdzenia na miejscu: czy przeglądarka Tesli gra dźwięk strony
   w czasie jazdy, czy pozwala na GPS i Wake Lock, i jak głośno wychodzi z głośników kabiny.
 - **Safari nieprzetestowane** automatycznie (test działa w Chrome). Powinno działać, ale pewne jest tylko w Chrome.
 - **GPS z pliku na Macu** — Chrome może pytać o zgodę na lokalizację lub jej odmówić dla plików z dysku; w aucie i tak będzie https.
