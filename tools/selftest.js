@@ -117,7 +117,10 @@ async function main() {
     let s, t0 = Date.now();
     for (;;) { s = await state(); if (s.preset === e.id || Date.now() - t0 > 4000) break; await sleep(100); }
     check(`${e.name}: dźwięk wystartował, gra właściwy silnik`, s.ctx === 'running' && s.running && s.preset === e.id && s.drive, `AudioContext ${s.ctx}, preset w syntezie: ${s.preset}, po ${((Date.now() - t0) / 1000 + 0.9).toFixed(1)} s`);
-    const idleLvl = s.level;
+    let idleP = 0;
+    for (let k = 0; k < 6; k++) { await sleep(120); idleP += Math.pow(10, (await evaluate('window.__level()')) / 10); }
+    const idleLvl = Math.round(10 * Math.log10(idleP / 6));
+    if (e.id !== 'b4r') check(`${e.name}: jałowy wyraźnie słyszalny`, idleLvl > -36, `${idleLvl} dBFS`);
     const revving = await hold('#rev', 900);
     check(`${e.name}: przegazówka na postoju`, revving.rpm > e.idle * 3 && revving.gear === 0, `${Math.round(revving.rpm)} obr/min`);
     await sleep(700);

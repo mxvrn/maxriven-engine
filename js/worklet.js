@@ -114,7 +114,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
       p.pulses = [];
       for (let b = 0; b < p.banks; b++) {
         const arr = [];
-        for (let j = 0; j < 8; j++) arr.push({ on: false, pos: 0, spos: 0, amp: 0, spk: 0, crack: 0 });
+        for (let j = 0; j < 8; j++) arr.push({ on: false, pos: 0, spos: 0, sinc: 0, amp: 0, spk: 0, crack: 0 });
         p.pulses.push(arr);
       }
       p.crackBp = [];
@@ -131,6 +131,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
       p.form = [[], []];
       for (let c = 0; c < 2; c++) for (const f of s.formants) p.form[c].push({ bq: new Biquad().bp(f[0] * (1 + 0.025 * c), f[1]), g: f[2] });
       p.bright = [new Biquad(), new Biquad()];
+      p.post = [new Biquad(), new Biquad()]; // drugi dolnoprzepustowy za saturacją: stromiej ucina górę
       p.bodyA = poleHz(190);
       p.body = [0, 0];
       p.radPrev = [0, 0];
@@ -138,17 +139,16 @@ function MAXRIVEN_ENGINE_WORKLET() {
       // dolot
       p.intBp = new Biquad().bp(s.intake.f, s.intake.q);
       p.roarBp = new Biquad().bp(s.intake.roarF, s.intake.roarQ);
-      p.plateBp = new Biquad().bp(2400, 1.4);
+      p.roarLp = new Biquad().lp(s.intake.roarF * 2, 0.7); // szum zasysania bez syczącej góry
       p.envA = poleHz(120);
       p.env = 0;
+      p.pulseA = poleHz(700);
+      p.pulse = 0;
 
       // mechanika
-      p.tickHp = new Biquad().hp(3800, 0.8);
-      p.hissBp = new Biquad().bp(3200, 0.7);
+      // stuk zaworów: krótki metaliczny „pyk” rezonatora pobudzanego impulsem (bez białego szumu)
+      p.tickBp = new Biquad().bp(s.mech.tickF || 3000, 9);
       p.tickPhase = 0;
-      p.tickEnv = 0;
-      p.tickAmp = 0;
-      p.tickDec = Math.exp(-1 / (0.0007 * SR));
       p.whinePh = 0;
 
       // turbo
@@ -166,6 +166,8 @@ function MAXRIVEN_ENGINE_WORKLET() {
       p.pops = [];
       for (let j = 0; j < 10; j++) p.pops.push({ on: false, wait: 0, age: 0, amp: 0, envN: 0, decN: 0, envT: 0, decT: 0, ph: 0, inc: 0, bq: new Biquad() });
       p.crackE = 0;
+      p.popLp = 0;
+      p.popA = poleHz(4000);
       p.thrPeak = 0;
       p.liftArmed = true;
 
@@ -174,6 +176,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
       p.thr = 0;
       p.lc = 0;
       p.thrSlow = 0;
+      p.onThr = 0;
       p.cut = 0;
       p.th = 0;
       p.evIdx = 0;
@@ -182,6 +185,11 @@ function MAXRIVEN_ENGINE_WORKLET() {
       p.wobT = 0;
       p.wobTimer = 0;
       p.dc = [0, 0, 0, 0];
+      // krzywa poziomu: jałowy i lekki gaz głośniej (cicho przy zerowym obciążeniu brzmiało jak wyłączony silnik)
+      p.lvl = Math.pow(10, (s.idleDb || 0) / 20);
+      p.lvlT = p.lvl;
+      p.aLvlUp = poleSec(0.45);
+      p.aLvlDown = poleSec(0.05);
       p.aRpm = poleSec(0.012);
       p.aThr = poleSec(0.03);
       p.aCut = poleSec(0.004);
@@ -230,7 +238,9 @@ function MAXRIVEN_ENGINE_WORKLET() {
       for (const q of arr) if (!q.on) { slot = q; break; }
       slot.on = true;
       slot.pos = (over * dTh) / s.pulseDeg;
-      slot.spos = over * p.spikeInc;
+      // przy małym obciążeniu impuls wydmuchu jest dłuższy i łagodniejszy: mniej trzasku, więcej basu
+      slot.sinc = p.spikeInc / (1 + 1.4 * (1 - load));
+      slot.spos = over * slot.sinc;
       slot.amp = amp;
       slot.spk = (s.offSpike + (1 - s.offSpike) * load) * (1 + 0.1 * e.tone);
       slot.crack = amp * s.crack * (0.15 + 0.85 * load * load);
@@ -273,6 +283,12 @@ function MAXRIVEN_ENGINE_WORKLET() {
       const bright = s.brightOff + (s.bright - s.brightOff) * load;
       p.bright[0].lp(bright, 0.6);
       p.bright[1].lp(bright * 1.03, 0.6);
+      p.post[0].lp(bright * 1.5, 0.7);
+      p.post[1].lp(bright * 1.55, 0.7);
+      const idleW = (1 - smooth(0.03, 0.75, p.thr)) * (1 - smooth(s.redline * 0.35, s.redline * 0.8, p.rpm));
+      // jazda ze stałą prędkością (lekki gaz) nie może brzmieć słabiej niż postój
+      p.onThr = smooth(0.05, 0.15, p.thr);
+      p.lvlT = Math.pow(10, ((s.idleDb || 0) * idleW) / 20);
       const hollow = 1 + 0.22 * (1 - load);
       p.header.forEach((h, b) => { h.fb = clamp(s.headerFb * hollow, -0.9, 0.9); });
       p.pipe[0].fb = p.pipe[1].fb = clamp(s.pipeFb * hollow, -0.9, 0.9);
@@ -329,7 +345,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
 
         const rpm = p.rpm < 0 ? 0 : p.rpm;
         // obciążenie spalania: na jałowym silnik też pali paliwo, więc nie brzmi jak hamowanie silnikiem
-        const idleL = s.idleLoad * smooth(s.idleRpm * 1.8, s.idleRpm * 1.02, rpm);
+        const idleL = s.idleLoad * Math.max(smooth(s.idleRpm * 1.8, s.idleRpm * 1.02, rpm), 0.8 * p.onThr);
         p.lc = p.thr > idleL ? p.thr : idleL;
         const load = p.lc;
         const rn = rpm / s.redline;
@@ -363,7 +379,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
             if (q.spos < 1) {
               const x = q.spos * LUT, xi = x | 0, xf = x - xi;
               v += q.spk * (p.spikeLut[xi] + (p.spikeLut[xi + 1] - p.spikeLut[xi]) * xf);
-              q.spos += p.spikeInc;
+              q.spos += q.sinc;
             }
             u += q.amp * v;
             c += q.crack * r.bi();
@@ -392,6 +408,9 @@ function MAXRIVEN_ENGINE_WORKLET() {
           q.age++;
           if (q.envN < 1e-4 && q.envT < 1e-4) q.on = false;
         }
+        // strzał ma huknąć, nie zasyczeć: szumowa część bez najwyższej góry
+        p.popLp += p.popA * (pop - p.popLp);
+        pop = p.popLp;
 
         // rura, tłumik, promieniowanie, saturacja — osobno lewa i prawa strona
         const drive = s.driveOn * load + s.driveOff * (1 - load);
@@ -408,27 +427,28 @@ function MAXRIVEN_ENGINE_WORKLET() {
           const rad = m - 0.9 * p.radPrev[c];
           p.radPrev[c] = m;
           m = m * (1 - s.radiation) + rad * s.radiation;
-          m = sat(m * drive * 0.9) * driveN + pop * 0.55;
+          m = p.post[c].run(sat(m * drive * 0.9) * driveN) + pop * 0.55;
           if (c === 0) ex0 = m; else ex1 = m;
         }
 
         // dolot: rezonans puszki powietrza + szum zasysania modulowany impulsami
+        // szum zasysania tylko w rytmie impulsów (szybka obwiednia zapłonów), nie jako stała warstwa
         p.env += p.envA * (Math.abs(uSum) - p.env);
+        p.pulse += p.pulseA * (Math.abs(uSum) - p.pulse);
         const ld = Math.pow(p.thr, 1.3);
+        const gate = (p.pulse * p.pulse) / (p.env + 0.05);
         let intake = p.intBp.run(uSum) * s.intake.lvl * (0.15 + 0.85 * ld) * (0.35 + 0.65 * rn);
-        intake += p.roarBp.run(r.bi() * p.env) * s.intake.roar * ld * (0.25 + rn) * 2.5;
-        intake += p.plateBp.run(r.bi()) * 0.015 * (1 - p.thr) * rn * rn;
+        intake += p.roarLp.run(p.roarBp.run(r.bi() * gate)) * s.intake.roar * ld * (0.25 + rn) * 1.1;
 
         // mechanika: zawory, łańcuch, szum
         const mech = s.mech;
         p.tickPhase += (dTh * nb * 2 * (p.nCyl / nb)) / 720;
-        if (p.tickPhase >= 1) { p.tickPhase -= 1; p.tickEnv = 1; p.tickAmp = 0.6 + 0.4 * r.next(); }
-        p.tickEnv *= p.tickDec;
+        let kick = 0;
+        if (p.tickPhase >= 1) { p.tickPhase -= 1; kick = 0.8 + 0.2 * r.next(); }
         p.whinePh += ((rpm / 60) * mech.teeth) / SR;
         if (p.whinePh > 1) p.whinePh -= 1;
-        let mo = p.tickHp.run(r.bi() * p.tickEnv * p.tickAmp) * mech.tick * (0.4 + rn);
+        let mo = p.tickBp.run(kick) * mech.tick * 2.2 * (0.4 + rn);
         mo += Math.sin(TAU * p.whinePh) * mech.whine * Math.pow(rn, 1.5) * 0.25;
-        mo += p.hissBp.run(r.bi()) * mech.hiss * rn * rn * 0.5;
         mo *= mech.lvl;
 
         // turbo: gwizd wirnika + blow-off
@@ -438,7 +458,7 @@ function MAXRIVEN_ENGINE_WORKLET() {
           p.whPh += f / SR;
           if (p.whPh > 1) p.whPh -= 1;
           const wa = t.lvl * p.shaft * p.shaft * (0.35 + 0.65 * p.thr);
-          tb += wa * (0.55 * Math.sin(TAU * p.whPh) + 0.6 * p.whBp.run(r.bi()));
+          tb += wa * (0.55 * Math.sin(TAU * p.whPh) + 0.25 * p.whBp.run(r.bi()));
           if (p.bovAge < SR * 1.5) {
             const bt = p.bovAge / SR;
             const env = (1 - Math.exp(-bt / 0.01)) * Math.exp(-bt / 0.28);
@@ -460,7 +480,8 @@ function MAXRIVEN_ENGINE_WORKLET() {
         const yr = rr - p.dc[2] + dcR * p.dc[3];
         p.dc[2] = rr; p.dc[3] = yr;
 
-        const g = gain * this.fade;
+        p.lvl += (p.lvlT > p.lvl ? p.aLvlUp : p.aLvlDown) * (p.lvlT - p.lvl);
+        const g = gain * p.lvl * this.fade;
         L[i] = yl * g;
         R[i] = yr * g;
       }
